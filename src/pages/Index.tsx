@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Checkout from './Checkout';
 import Success from './Success';
 
@@ -24,15 +24,13 @@ const Index = () => {
   }, [theme]);
 
   return (
-    <Router>
-      <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
-        <Routes>
-          <Route path="/" element={<Checkout theme={theme} setTheme={setTheme} />} />
-          <Route path="/checkout" element={<Checkout theme={theme} setTheme={setTheme} />} />
-          <Route path="/success" element={<Success theme={theme} setTheme={setTheme} />} />
-        </Routes>
-      </div>
-    </Router>
+    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+      <Routes>
+        <Route path="/" element={<Checkout theme={theme} setTheme={setTheme} />} />
+        <Route path="/checkout" element={<Checkout theme={theme} setTheme={setTheme} />} />
+        <Route path="/success" element={<Success theme={theme} setTheme={setTheme} />} />
+      </Routes>
+    </div>
   );
 };
 
