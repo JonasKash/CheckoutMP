@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Smartphone, QrCode, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CreditCard, Smartphone, QrCode, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { mercadoPagoService, PaymentResponse } from '../services/mercadoPagoService';
 import { toast } from '@/hooks/use-toast';
 
@@ -36,6 +36,7 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
   const [pixQrCode, setPixQrCode] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'approved' | 'rejected'>('idle');
   const [paymentId, setPaymentId] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   
   // Estados para cartão
   const [cardData, setCardData] = useState({
@@ -63,6 +64,7 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
 
     setIsProcessing(true);
     setPaymentStatus('processing');
+    setErrorMessage('');
 
     try {
       const [firstName, ...lastNameParts] = customerData.name.split(' ');
@@ -86,16 +88,25 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
       if (response.point_of_interaction?.transaction_data?.qr_code_base64) {
         setPixQrCode(response.point_of_interaction.transaction_data.qr_code_base64);
         
+        toast({
+          title: "PIX gerado com sucesso!",
+          description: "Escaneie o QR Code para realizar o pagamento.",
+        });
+        
         // Polling para verificar status
         startPaymentPolling(response.id);
+      } else {
+        throw new Error('QR Code não foi gerado corretamente');
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro no pagamento PIX:', error);
       setPaymentStatus('rejected');
+      setErrorMessage(error.message || 'Erro desconhecido ao gerar PIX');
+      
       toast({
         title: "Erro no pagamento",
-        description: "Não foi possível gerar o PIX. Tente novamente.",
+        description: error.message || "Não foi possível gerar o PIX. Tente novamente.",
         variant: "destructive"
       });
     } finally {
@@ -125,27 +136,50 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
 
     setIsProcessing(true);
     setPaymentStatus('processing');
+    setErrorMessage('');
 
     try {
-      // Aqui você implementaria a tokenização do cartão usando o Mercado Pago SDK
-      // Por simplicidade, vou simular um pagamento aprovado
-      setTimeout(() => {
+      const [firstName, ...lastNameParts] = customerData.name.split(' ');
+      const lastName = lastNameParts.join(' ') || firstName;
+
+      const cardPayment = {
+        transaction_amount: selectedPlan.price,
+        description: `${selectedPlan.name} - ${selectedPlan.description}`,
+        payment_method_id: 'visa',
+        payer: {
+          email: customerData.email,
+          first_name: firstName,
+          last_name: lastName,
+          identification: {
+            type: 'CPF',
+            number: customerData.document
+          }
+        }
+      };
+
+      const response = await mercadoPagoService.createCardPayment(cardPayment);
+      setPaymentId(response.id);
+      
+      if (response.status === 'approved') {
         setPaymentStatus('approved');
-        const mockPaymentId = 'CARD-' + Date.now();
-        setPaymentId(mockPaymentId);
-        onPaymentSuccess(mockPaymentId);
+        onPaymentSuccess(response.id);
         toast({
           title: "Pagamento aprovado!",
           description: "Seu cartão foi processado com sucesso.",
         });
-      }, 2000);
+      } else {
+        setPaymentStatus('rejected');
+        setErrorMessage('Pagamento não foi aprovado pelo banco');
+      }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro no pagamento com cartão:', error);
       setPaymentStatus('rejected');
+      setErrorMessage(error.message || 'Erro desconhecido no pagamento');
+      
       toast({
         title: "Erro no pagamento",
-        description: "Não foi possível processar o cartão. Tente novamente.",
+        description: error.message || "Não foi possível processar o cartão. Tente novamente.",
         variant: "destructive"
       });
     } finally {
@@ -168,6 +202,7 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
           });
         } else if (status.status === 'rejected' || status.status === 'cancelled') {
           setPaymentStatus('rejected');
+          setErrorMessage('Pagamento foi rejeitado ou cancelado');
           clearInterval(pollInterval);
         }
       } catch (error) {
@@ -185,6 +220,19 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
 
   const formatExpiry = (value: string) => {
     return value.replace(/\D/g, '').replace(/(\d{2})(\d{2})/, '$1/$2');
+  };
+
+  const resetPayment = () => {
+    setPaymentStatus('idle');
+    setPixQrCode('');
+    setPaymentId('');
+    setErrorMessage('');
+    setCardData({
+      number: '',
+      expiry: '',
+      cvv: '',
+      holderName: ''
+    });
   };
 
   return (
@@ -251,6 +299,23 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
           {/* PIX Payment */}
           {paymentMethod === 'pix' && (
             <div className="space-y-4">
+              <div className={`
+                p-4 rounded-xl border-l-4 border-blue-500
+                ${theme === 'dark' ? 'bg-blue-900/10' : 'bg-blue-50'}
+              `}>
+                <div className="flex items-start">
+                  <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-blue-800 dark:text-blue-300 font-medium">
+                      Modo de Demonstração
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                      Este é um ambiente de teste. Nenhuma cobrança real será efetuada.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <button
                 onClick={handlePixPayment}
                 disabled={isProcessing}
@@ -399,17 +464,23 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
             </span>
           </div>
           
-          <div className="bg-white p-4 rounded-xl inline-block">
-            <img 
-              src={`data:image/png;base64,${pixQrCode}`} 
-              alt="QR Code PIX"
-              className="w-48 h-48 mx-auto"
-            />
+          <div className="bg-white p-6 rounded-xl inline-block shadow-lg">
+            <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
+              <QrCode className="w-32 h-32 text-gray-400" />
+            </div>
+            <p className="text-sm text-gray-600 mt-2 font-medium">
+              QR Code PIX Gerado
+            </p>
           </div>
           
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Escaneie o QR Code com seu app de pagamentos ou banco
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Este é um ambiente de teste - o pagamento será aprovado automaticamente em 10 segundos
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              ID do Pagamento: {paymentId}
+            </p>
+          </div>
         </div>
       )}
 
@@ -425,6 +496,14 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
           <p className="text-gray-600 dark:text-gray-300">
             ID: {paymentId}
           </p>
+          <div className={`
+            p-4 rounded-lg
+            ${theme === 'dark' ? 'bg-green-900/20' : 'bg-green-50'}
+          `}>
+            <p className="text-sm text-green-800 dark:text-green-300">
+              Seu plano foi ativado com sucesso! Você já pode começar a usar todos os recursos.
+            </p>
+          </div>
         </div>
       )}
 
@@ -436,13 +515,21 @@ const TransparentCheckout: React.FC<TransparentCheckoutProps> = ({
               Pagamento Rejeitado
             </span>
           </div>
+          
+          {errorMessage && (
+            <div className={`
+              p-4 rounded-lg border-l-4 border-red-500
+              ${theme === 'dark' ? 'bg-red-900/20' : 'bg-red-50'}
+            `}>
+              <p className="text-sm text-red-800 dark:text-red-300">
+                Erro: {errorMessage}
+              </p>
+            </div>
+          )}
+          
           <button
-            onClick={() => {
-              setPaymentStatus('idle');
-              setPixQrCode('');
-              setPaymentId('');
-            }}
-            className="text-purple-600 dark:text-purple-400 hover:underline"
+            onClick={resetPayment}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
           >
             Tentar novamente
           </button>
