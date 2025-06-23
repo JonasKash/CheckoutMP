@@ -3,6 +3,7 @@ import { CreditCard, Lock, User, Mail, Phone, MapPin } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import TransparentCheckout from './TransparentCheckout';
 import MercadoPagoConfig from './MercadoPagoConfig';
+import { mercadoPagoService } from '../services/mercadoPagoService';
 
 interface CheckoutFormProps {
   selectedPlan: {
@@ -51,6 +52,11 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ selectedPlan, onPayment, th
     const savedToken = localStorage.getItem('mp_token');
     if (savedToken) {
       setMpToken(savedToken);
+    } else {
+      // Se não há token salvo, usar o token de teste automaticamente
+      const testToken = mercadoPagoService.getAccessToken();
+      setMpToken(testToken);
+      localStorage.setItem('mp_token', testToken);
     }
   }, []);
 
@@ -153,6 +159,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ selectedPlan, onPayment, th
 
   const handleTokenSet = (token: string) => {
     setMpToken(token);
+    mercadoPagoService.setAccessToken(token);
     toast({
       title: "Token configurado",
       description: "Agora você pode usar o checkout transparente.",
@@ -201,9 +208,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ selectedPlan, onPayment, th
 
   return (
     <div className="space-y-6">
-      {!mpToken && (
-        <MercadoPagoConfig theme={theme} onTokenSet={handleTokenSet} />
-      )}
+      <MercadoPagoConfig theme={theme} onTokenSet={handleTokenSet} />
 
       <div className={`
         p-8 rounded-2xl border shadow-xl

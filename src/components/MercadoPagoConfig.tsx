@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Key, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Key, Eye, EyeOff, Check } from 'lucide-react';
 
 interface MercadoPagoConfigProps {
   theme: 'light' | 'dark';
@@ -10,14 +10,69 @@ interface MercadoPagoConfigProps {
 const MercadoPagoConfig: React.FC<MercadoPagoConfigProps> = ({ theme, onTokenSet }) => {
   const [token, setToken] = useState('');
   const [showToken, setShowToken] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
+
+  // Credenciais de teste pré-configuradas
+  const testAccessToken = 'APP_USR-7375924962821708-062220-ed6219793d03da4b29bdd1545b0b8b8e-315320666';
+  const testPublicKey = 'APP_USR-8e95c420-3260-4568-8b96-74ba6863d463';
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem('mp_token');
+    if (savedToken) {
+      setToken(savedToken);
+      setIsConfigured(true);
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (token.trim()) {
       onTokenSet(token.trim());
       localStorage.setItem('mp_token', token.trim());
+      setIsConfigured(true);
     }
   };
+
+  const useTestCredentials = () => {
+    setToken(testAccessToken);
+    onTokenSet(testAccessToken);
+    localStorage.setItem('mp_token', testAccessToken);
+    setIsConfigured(true);
+  };
+
+  if (isConfigured) {
+    return (
+      <div className={`
+        p-4 rounded-2xl border shadow-xl mb-6
+        ${theme === 'dark' 
+          ? 'bg-green-800/20 border-green-700/50 backdrop-blur-sm' 
+          : 'bg-green-50/80 border-green-200 backdrop-blur-sm'
+        }
+      `}>
+        <div className="flex items-center">
+          <Check className="w-5 h-5 text-green-600 dark:text-green-400 mr-3" />
+          <div>
+            <h4 className="font-semibold text-green-800 dark:text-green-300">
+              Mercado Pago Configurado
+            </h4>
+            <p className="text-sm text-green-700 dark:text-green-400">
+              Checkout transparente ativo e pronto para uso
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setIsConfigured(false);
+              setToken('');
+              localStorage.removeItem('mp_token');
+            }}
+            className="ml-auto text-sm text-green-600 dark:text-green-400 hover:underline"
+          >
+            Reconfigurar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`
@@ -34,8 +89,31 @@ const MercadoPagoConfig: React.FC<MercadoPagoConfigProps> = ({ theme, onTokenSet
         </h3>
       </div>
 
+      {/* Botão para usar credenciais de teste */}
+      <div className={`
+        p-4 rounded-xl mb-4 border-2 border-dashed
+        ${theme === 'dark' ? 'border-blue-500/30 bg-blue-900/10' : 'border-blue-300 bg-blue-50'}
+      `}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-1">
+              Credenciais de Teste Disponíveis
+            </h4>
+            <p className="text-sm text-blue-700 dark:text-blue-400">
+              Use as credenciais pré-configuradas para testar o checkout
+            </p>
+          </div>
+          <button
+            onClick={useTestCredentials}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Usar Teste
+          </button>
+        </div>
+      </div>
+
       <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm">
-        Para utilizar o checkout transparente, você precisa configurar seu Access Token do Mercado Pago.
+        Ou configure manualmente seu Access Token do Mercado Pago.
         <br />
         <a 
           href="https://www.mercadopago.com.br/developers/panel/credentials" 
